@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <link rel="stylesheet" href="styles.css">
+  <title>Hallazgos de Auditoría</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+</head>
+
+<body>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>📌 Hallazgos</h1>
+    <div>
+      <button id="btnNuevo" class="btn" onclick="nuevoHallazgo()">+ Nuevo</button>
+      <button class="btn" onclick="window.location='Auditorias.html'">⬅ Volver</button>
+    </div>
+  </div>
+
+  <!-- FILTROS -->
+  <div class="filtros">
+    <select id="filtroEstatus" onchange="cargarHallazgos()">
+      <option value="">Todos</option>
+      <option value="Abierto">Abierto</option>
+      <option value="Cerrado">Cerrado</option>
+    </select>
+
+    <select id="filtroTipo" onchange="cargarHallazgos()">
+      <option value="">Todos</option>
+      <option value="NC Mayor">NC Mayor</option>
+      <option value="NC Menor">NC Menor</option>
+      <option value="Oportunidad">Oportunidad</option>
+      <option value="Riesgo">Riesgo</option>
+    </select>
+  </div>
+
+  <!-- Formulario para agregar -->
+<div id="formHallazgo" class="formulario" style="display:none;">
+
+  <h3>Nuevo Hallazgo</h3>
+
+  <div style="flex:1; min-width:200px;">
+    <label for="tipo">Tipo</label>
+    <select id="tipo">
+      <option value="NC Mayor">NC Mayor</option>
+      <option value="NC Menor">NC Menor</option>
+      <option value="Oportunidad">Oportunidad</option>
+      <option value="Riesgo">Riesgo</option>
+    </select>
+  </div>
+
+  <div style="flex:1; min-width:200px;">
+    <label for="descripcion">Descripción</label>
+    <input type="text" id="descripcion" placeholder="Descripción">
+  </div>
+
+  <div style="flex:1; min-width:200px;">
+    <label for="planAccion">Plan de Acción</label>
+    <input type="file" id="planAccion">
+  </div>
+
+  <div style="width:100%; margin-top:10px;">
+    <button class="btn" onclick="registrarHallazgo()">Guardar</button>
+    <button class="btn" onclick="cancelarHallazgo()">Cancelar</button>
+  </div>
+
+</div>
+
+
+  <!-- TABLA -->
+  <table class="tabla">
+    <thead>
+      <tr>
+        <th>Tipo</th>
+        <th>Descripción</th>
+        <th>Plan de Acción</th>
+        <th>Estatus</th>
+        <th>Evidencias</th>
+        <th>Acción</th>
+      </tr>
+    </thead>
+    <tbody id="tablaHallazgos"></tbody>
+  </table>
+
+</div>
+
+<script>
+const supabaseUrl = "https://bkqgwuvthqvbgalfxjkj.supabase.co";
+const supabaseKey = "sb_publishable_Bmp-VjS7FEAUofmrAv1cJQ_Q8OZy5jO"; // tu anon key
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+// Obtener usuario y auditoría
+const usuario = JSON.parse(localStorage.getItem("usuario"));
+const params = new URLSearchParams(window.location.search);
+const idAuditoria = params.get("id");
+console.log("Auditoria ID:", idAuditoria);
+
+if(!usuario){
+  window.location="login.html";
+}
+
+const rol = usuario.rol?.toLowerCase();
+
+// 🔒 Control de botón nuevo
+const btnNuevo = document.getElementById("btnNuevo");
+if(btnNuevo){
+  btnNuevo.style.display = (rol === "representante") ? "inline-block" : "none";
+}
+
+// 🔒 Control de formulario
+const form = document.getElementById("formHallazgo");
+if(form){
+  form.style.display = "none"; // siempre oculto al inicio
+}
+
+// Mostrar formulario solo para representante
+if(usuario.rol === "Representante"){
+  const form = document.getElementById("formHallazgo");
+  if(form){
+    form.style.display = "block";
+  }
+}
+
+
+async function cargarHallazgos(){
+
+  let query = supabaseClient
+    .from("hallazgos")
+    .select(`
+            *,
+            evidencias (
+            archivo_url
+            )
+          `)
+    .eq("id_auditoria", idAuditoria);
+
+  const estatus = document.getElementById("filtroEstatus").value;
+  const tipo = document.getElementById("filtroTipo").value;
+
+  if(estatus) query = query.eq("estatus", estatus);
+  if(tipo) query = query.eq("tipo", tipo);
+
+  const { data, error } = await query;
+
+  console.log("ID Auditoria:", idAuditoria);
+  console.log("DATA:", data);
+  console.log("ERROR:", error);
+
+  if(error){
+    alert(error.message);
+    return;
+  }
+
+  let tabla = document.getElementById("tablaHallazgos");
+  tabla.innerHTML = "";
+
+  data.forEach(h => {
+
+  let claseTipo = h.tipo.toLowerCase().replace(" ", "-");
+
+  tabla.innerHTML += `
+    <tr>
+      <td><span class="badge ${claseTipo}">${h.tipo}</span></td>
+
+      <td>${h.descripcion}</td>
+
+      <td>
+        ${
+          h.plan_accion_url
+          ? `<a class="link-btn" href="${h.plan_accion_url}" target="_blank">Ver</a>`
+          : `<span style="color:#888">Sin archivo</span>`
+        }
+      </td>
+
+      <td class="${h.estatus.toLowerCase()}">${h.estatus}</td>
+
+      <td>
+        <div>
+          ${
+            h.evidencias && h.evidencias.length > 0
+              ? h.evidencias.map(e => {
+                const nombreArchivo = e.archivo_url.split("/").pop(); // obtiene el nombre del archivo
+                return `<a href="${e.archivo_url}" target="_blank">${nombreArchivo}</a><br>`;
+              }).join("")
+            : `<span style="color:#888">Sin evidencias</span>`
+          }
+        </div>
+
+          ${
+            usuario.rol === "Auditor" || usuario.rol === "Representante"
+            ? `<input type="file" multiple onchange="subirEvidencias('${h.id}', this)">`
+          : ``
+          }
+      </td>
+
+      <td>
+        ${
+        rol === "representante"
+         ? `<button onclick="toggleEstatusHallazgo('${h.id}', '${h.estatus}')">
+           ${h.estatus.toLowerCase() === "abierto" ? "Cerrar" : "Reabrir"}
+         </button>`
+      : `<span style="color:#22c55e">${h.estatus}</span>`
+        }
+      </td>
+    </tr>
+  `;
+});
+}
+
+// Registrar hallazgo (solo representante)
+async function registrarHallazgo(){
+
+  const tipo = document.getElementById("tipo").value;
+  const descripcion = document.getElementById("descripcion").value;
+  const archivo = document.getElementById("planAccion").files[0];
+
+  if(!descripcion){
+    alert("Debes escribir la descripción del hallazgo");
+    return;
+  }
+
+  let plan_url = "";
+
+  if(archivo){
+    const nombreArchivo = Date.now()+"_"+archivo.name;
+
+    const { error: uploadError } = await supabaseClient.storage
+      .from("hallazgos")
+      .upload(nombreArchivo, archivo);
+
+    if(uploadError){
+      alert(uploadError.message);
+      return;
+    }
+
+    plan_url = supabaseUrl + "/storage/v1/object/public/hallazgos/" + nombreArchivo;
+  }
+
+  const { error } = await supabaseClient
+  .from("hallazgos")
+  .insert([
+    {
+      id_auditoria: idAuditoria,
+      tipo: tipo,
+      descripcion: descripcion,
+      plan_accion_url: plan_url,
+      creado_por: usuario.rol,
+      estatus: "Abierto"
+    }
+  ]);
+
+  if(error){
+    alert(error.message);
+    return;
+  }
+
+  alert("Hallazgo registrado correctamente");
+  cargarHallazgos();
+}
+
+// Subir plan de acción existente
+async function subirPlanAccion(hallazgoId, input){
+  const archivo = input.files[0];
+  const nombreArchivo = Date.now()+"_"+archivo.name;
+  const { error: uploadError } = await supabaseClient.storage
+    .from("hallazgos")
+    .upload(nombreArchivo, archivo);
+  if(uploadError){ alert(uploadError.message); return; }
+  const url = supabaseUrl + "/storage/v1/object/public/hallazgos/" + nombreArchivo;
+
+  await supabaseClient.from("hallazgos").update({plan_accion_url: url}).eq("id", hallazgoId);
+  alert("Plan de acción subido");
+  cargarHallazgos();
+}
+
+async function subirEvidencias(idHallazgo, input) {
+  const archivos = input.files;
+
+  for (let i = 0; i < archivos.length; i++) {
+    const archivo = archivos[i];
+    const nombreArchivo = Date.now() + "_" + archivo.name;
+
+    // Subir al storage
+    const { error: uploadError } = await supabaseClient
+      .storage
+      .from("hallazgos")
+      .upload(nombreArchivo, archivo);
+
+    if (uploadError) {
+      alert(uploadError.message);
+      return;
+    }
+
+    const url = supabaseUrl + "/storage/v1/object/public/hallazgos/" + nombreArchivo;
+
+    // Insertar en la tabla evidencias
+    const { error: insertError } = await supabaseClient
+      .from("evidencias")
+      .insert({ id_hallazgo: idHallazgo, archivo_url: url });
+
+    if (insertError) {
+      alert(insertError.message);
+      return;
+    }
+  }
+
+  alert("Evidencias cargadas correctamente");
+  cargarHallazgos();
+}
+
+async function toggleEstatusHallazgo(idHallazgo, estatusActual) {
+  console.log("ID recibido:", idHallazgo, "Estatus:", estatusActual);
+
+  const nuevoEstatus = estatusActual === "Abierto" ? "Cerrado" : "Abierto";
+
+  const confirmar = confirm(
+    estatusActual === "Abierto"
+      ? "¿Cerrar este hallazgo?"
+      : "¿Reabrir este hallazgo?"
+  );
+  if (!confirmar) return;
+
+  const { data, error } = await supabaseClient
+    .from("hallazgos")
+    .update({ estatus: nuevoEstatus })
+    .eq("id", idHallazgo)
+    .select();   // 👈 esto devuelve el registro actualizado
+
+  console.log("DATA UPDATE:", data, "ERROR:", error);
+
+  if (error) {
+    alert("No se pudo actualizar el estatus: " + error.message);
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    alert("No se encontró el hallazgo con ese ID");
+    return;
+  }
+
+  cargarHallazgos(); // refresca tabla
+}
+
+function nuevoHallazgo(){
+  document.getElementById("formHallazgo").style.display = "block";
+}
+
+function cancelarHallazgo(){
+  document.getElementById("formHallazgo").style.display = "none";
+}
+
+
+cargarHallazgos();
+</script>
+
+</body>
+</html>

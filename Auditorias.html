@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <link rel="stylesheet" href="styles.css">
+  <title>Auditorías Registradas</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+</head>
+
+<body>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <button class="btn" onclick="window.location='menu.html'">⬅ Menú</button>
+    <h1>📋 Auditorías</h1>
+  </div>
+
+  <!-- TABLA -->
+  <table class="tabla">
+    <thead>
+    <tr>
+      <th>N°</th>
+      <th>Periodo</th>
+      <th>Auditor</th>
+      <th>Estatus</th>
+      <th>Acciones</th>
+    </tr>
+    </thead>
+    <tbody id="tablaAuditorias"></tbody>
+  </table>
+
+</div>
+
+<script>
+const supabaseUrl = "https://bkqgwuvthqvbgalfxjkj.supabase.co";
+const supabaseKey = "sb_publishable_Bmp-VjS7FEAUofmrAv1cJQ_Q8OZy5jO"
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+const usuario = JSON.parse(localStorage.getItem("usuario"));
+
+async function cargarAuditorias() {
+
+  const { data, error } = await supabaseClient
+    .from("auditorias")
+    .select(`
+            *,
+            hallazgos!hallazgos_id_auditoria_fkey(tipo, estatus)
+           `)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  let tabla = document.getElementById("tablaAuditorias");
+  tabla.innerHTML = "";
+
+  data.forEach(auditoria => {
+
+    let ncMayor = 0;
+    let ncMenor = 0;
+    let oportunidad = 0;
+    let riesgo = 0;
+
+    if (auditoria.hallazgos) {
+      auditoria.hallazgos.forEach(h => {
+        if (h.tipo === "NC Mayor") ncMayor++;
+        if (h.tipo === "NC Menor") ncMenor++;
+        if (h.tipo === "Oportunidad") oportunidad++;
+        if (h.tipo === "Riesgo") riesgo++;
+      });
+    }
+    let abiertos = 0;
+
+    if (auditoria.hallazgos) {
+        auditoria.hallazgos.forEach(h => {
+        if (h.estatus !== "Cerrado") abiertos++;
+        });
+    }
+
+    tabla.innerHTML += `
+<tr onclick="toggleDetalle('${auditoria.id}')">
+  <td>${auditoria.numero_auditoria}</td>
+  <td>${auditoria.periodo}</td>
+  <td>${auditoria.auditor_jefe || "-"}</td>
+  <td>${auditoria.estatus || "-"}</td>
+  <td>👁 Ver</td>
+</tr>
+
+<tr id="detalle-${auditoria.id}" class="detalle" style="display:none;">
+  <td colspan="5">
+    
+    <div class="detalle-grid">
+
+      <div><b>Objetivo:</b> ${auditoria.objetivo}</div>
+      <div><b>Alcance:</b> ${auditoria.alcance}</div>
+      <div><b>Criterio:</b> ${auditoria.criterio}</div>
+      <div><b>Método:</b> ${auditoria.metodo}</div>
+
+      <div><b>Equipo:</b> ${auditoria.equipo_auditor}</div>
+      <div><b>Observador:</b> ${auditoria.observador}</div>
+
+      <div>
+        <b>Plan:</b>
+        ${
+          auditoria.plan_url
+          ? `<a class="link-btn" href="${auditoria.plan_url}" target="_blank">Ver</a>`
+          : `<input type="file" onchange="subirPlan('${auditoria.id}', this)">`
+        }
+      </div>
+
+      <div>
+        <b>Informe:</b>
+        ${
+          auditoria.informe_url
+          ? `<a class="link-btn" href="${auditoria.informe_url}" target="_blank">Ver</a>`
+          : `<input type="file" onchange="subirInforme('${auditoria.id}', this)">`
+        }
+      </div>
+
+      <div>
+        <b>Hallazgos:</b><br>
+
+        <a class="link-btn" href="hallazgos.html?id=${auditoria.id}">
+          Ver hallazgos
+        </a>
+
+        <br><br>
+
+        NC Mayor: ${ncMayor} |
+        NC Menor: ${ncMenor} |
+        OM: ${oportunidad} |
+        Riesgo: ${riesgo}
+      </div>
+
+      <div>
+        ${
+          abiertos > 0
+          ? `<span style="color:red">⚠ ${abiertos} abiertos</span>`
+          : "Sin pendientes"
+        }
+      </div>
+
+      <div>
+        ${
+          auditoria.estatus === "Con informe" && usuario?.rol === "Representante"
+          ? `<button onclick="aprobarAuditoria('${auditoria.id}')">Aprobar</button>`
+          : ""
+        }
+
+        ${
+          auditoria.estatus === "Concluido" && usuario?.rol === "Representante"
+          ? `<button onclick="reabrirAuditoria('${auditoria.id}')">Reabrir</button>`
+          : ""
+        }
+      </div>
+
+    </div>
+
+  </td>
+</tr>
+`;
+
+  });
+
+}
+
+// Subir Plan de Auditoría
+async function subirPlan(id, input) {
+  const archivo = input.files[0];
+  const nombreArchivo = Date.now() + "_" + archivo.name;
+
+  const { error } = await supabaseClient.storage.from("auditorias").upload(nombreArchivo, archivo);
+  if (error) { alert(error.message); return; }
+
+  const url = supabaseUrl + "/storage/v1/object/public/auditorias/" + nombreArchivo;
+  await supabaseClient.from("auditorias").update({ plan_url: url, estatus: "Con plan de auditoría" }).eq("id", id);
+
+  alert("Plan de auditoría subido");
+  cargarAuditorias();
+}
+
+// Subir Informe de Auditoría
+async function subirInforme(id, input) {
+  const archivo = input.files[0];
+  const nombreArchivo = Date.now() + "_" + archivo.name;
+
+  const { error } = await supabaseClient.storage.from("auditorias").upload(nombreArchivo, archivo);
+  if (error) { alert(error.message); return; }
+
+  const url = supabaseUrl + "/storage/v1/object/public/auditorias/" + nombreArchivo;
+  await supabaseClient.from("auditorias").update({ informe_url: url, estatus: "Con informe" }).eq("id", id);
+
+  alert("Informe subido");
+  cargarAuditorias();
+}
+
+async function aprobarAuditoria(id){
+
+  // Buscar hallazgos de la auditoría
+  const { data: hallazgos, error } = await supabaseClient
+  .from("hallazgos")
+  .select("estatus")
+  .eq("id_auditoria", id);
+
+  if(error){
+    alert(error.message);
+    return;
+  }
+
+  // Contar hallazgos abiertos
+  let abiertos = hallazgos.filter(h => h.estatus !== "Cerrado");
+
+  if(abiertos.length > 0){
+    alert("No se puede concluir la auditoría.\nExisten " + abiertos.length + " hallazgos abiertos.");
+    return;
+  }
+
+  // Si no hay hallazgos abiertos, aprobar auditoría
+  const { error: errorUpdate } = await supabaseClient
+  .from("auditorias")
+  .update({ estatus: "Concluido" })
+  .eq("id", id);
+
+  if(errorUpdate){
+    alert(errorUpdate.message);
+    return;
+  }
+
+  alert("Auditoría aprobada");
+  cargarAuditorias();
+
+}
+
+async function reabrirAuditoria(id){
+
+  const confirmar = confirm("¿Deseas reabrir la auditoría?");
+  if(!confirmar) return;
+
+  const { error } = await supabaseClient
+  .from("auditorias")
+  .update({
+      estatus: "Con informe",
+      reabierto_por: usuario.nombre,
+      fecha_reapertura: new Date()
+  })
+  .eq("id", id);
+
+  if(error){
+    alert(error.message);
+    return;
+  }
+
+  alert("La auditoría fue reabierta");
+  cargarAuditorias();
+}
+
+function toggleDetalle(id){
+  const fila = document.getElementById("detalle-" + id);
+  fila.style.display = fila.style.display === "none" ? "table-row" : "none";
+}
+
+
+// Carga inicial
+cargarAuditorias();
+</script>
+
+</body>
+</html>

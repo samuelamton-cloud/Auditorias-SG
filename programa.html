@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sistema de Auditorías SGC</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>📋 Programa de Auditoría</h1>
+    <a href="menu.html" class="btn">Menú principal</a>
+  </div>
+
+  <!-- FORMULARIO -->
+  <div class="formulario">
+    <label>Número de auditoría</label>
+    <input id="numero">
+
+    <label>Periodo</label>
+    <input type="date" id="periodo">
+
+    <label>Objetivo</label>
+    <textarea id="objetivo"></textarea>
+
+    <label>Alcance</label>
+    <textarea id="alcance"></textarea>
+
+    <label>Criterios</label>
+    <textarea id="criterios"></textarea>
+
+    <label>Método</label>
+    <textarea id="metodo"></textarea>
+
+    <label>Auditor Jefe</label>
+    <input id="auditor_jefe">
+
+    <label>Equipo Auditor</label>
+    <input id="equipo">
+
+    <label>Experto Técnico</label>
+    <input id="experto">
+
+    <label>Observadores</label>
+    <input id="observadores">
+
+    <label>Correo Auditor Jefe</label>
+    <input id="correo">
+
+    <button class="btn" onclick="guardar()">Guardar Auditoría</button>
+  </div>
+
+  <!-- TABLA -->
+  <div class="tabla-container">
+    <table class="tabla">
+      <thead>
+        <tr>
+          <th>Número</th>
+          <th>Periodo</th>
+          <th>Auditor Jefe</th>
+          <th>Estatus</th>
+          <th>Plan</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody id="tablaAuditorias"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const supabaseUrl = "https://bkqgwuvthqvbgalfxjkj.supabase.co"
+const supabaseKey = "sb_publishable_Bmp-VjS7FEAUofmrAv1cJQ_Q8OZy5jO"
+
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey)
+
+async function guardar(){
+
+const numero = document.getElementById("numero").value
+const periodo = document.getElementById("periodo").value
+const objetivo = document.getElementById("objetivo").value
+const alcance = document.getElementById("alcance").value
+const criterios = document.getElementById("criterios").value
+const metodo = document.getElementById("metodo").value
+const auditor_jefe = document.getElementById("auditor_jefe").value
+const equipo = document.getElementById("equipo").value
+const experto = document.getElementById("experto").value
+const observadores = document.getElementById("observadores").value
+const correo = document.getElementById("correo").value
+
+const { data, error } = await supabaseClient
+.from("auditorias")
+.insert([
+{
+numero_auditoria: numero,
+periodo: periodo,
+objetivo: objetivo,
+alcance: alcance,
+criterios: criterios,
+metodo: metodo,
+auditor_jefe: auditor_jefe,
+equipo_auditor: equipo,
+experto_tecnico: experto,
+observadores: observadores,
+correo_auditor_jefe: correo
+}
+])
+
+if(error){
+alert(error.message)
+console.log(error)
+}else{
+alert("Auditoría registrada")
+cargarAuditorias()
+}
+
+}
+
+async function cargarAuditorias(){
+
+console.log("cargando auditorias")
+
+const { data, error } = await supabaseClient
+.from("auditorias")
+.select()
+.order("created_at", {ascending:false})
+
+if(error){
+
+console.log(error)
+
+}else{
+
+let tabla = document.getElementById("tablaAuditorias")
+
+tabla.innerHTML = ""
+
+data.forEach(auditoria => {
+
+tabla.innerHTML += `
+<tr>
+<td>${auditoria.numero_auditoria}</td>
+<td>${auditoria.periodo}</td>
+<td>${auditoria.auditor_jefe}</td>
+<td>${auditoria.estatus}</td>
+<td>
+${auditoria.plan_url ? `<a href="${auditoria.plan_url}" target="_blank">Descargar</a>` : "Sin plan"}
+</td>
+
+<td>
+<input type="file" onchange="subirPlan('${auditoria.id}', this)">
+</td>
+</tr>
+`
+
+})
+
+}
+
+}
+async function subirPlan(id, input){
+
+const archivo = input.files[0]
+
+const nombreArchivo = Date.now() + "_" + archivo.name
+
+const { data, error } = await supabaseClient.storage
+.from("auditorias")
+.upload(nombreArchivo, archivo)
+
+if(error){
+
+alert(error.message)
+return
+
+}
+
+const url = supabaseUrl + "/storage/v1/object/public/auditorias/" + nombreArchivo
+
+await supabaseClient
+.from("auditorias")
+.update({plan_url: url, estatus:"Con plan de auditoria"})
+.eq("id", id)
+
+alert("Plan subido")
+
+cargarAuditorias()
+
+}
+
+cargarAuditorias()
+</script>
+
+</body>
+
+</html>

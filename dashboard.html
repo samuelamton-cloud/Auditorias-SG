@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<head>
+  <title>Dashboard Auditorías</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+</head>
+
+<body>
+
+<body>
+
+<div class="dashboard">
+
+  <!-- HEADER -->
+  <div class="top-bar">
+    <button class="btn" onclick="window.location='menu.html'">⬅ Menú</button>
+    <h1 class="titulo">📊 Dashboard SGC</h1>
+  </div>
+
+  <!-- KPIs -->
+  <div class="cards">
+    <div class="card">
+      <h3>Auditorías Programadas</h3>
+      <p id="programadas">0</p>
+    </div>
+
+    <div class="card">
+      <h3>Con Plan</h3>
+      <p id="plan">0</p>
+    </div>
+
+    <div class="card">
+      <h3>Hallazgos Abiertos</h3>
+      <p id="hallazgos">0</p>
+    </div>
+  </div>
+
+  <!-- GRAFICA -->
+  <div class="chart-container">
+    <canvas id="grafica"></canvas>
+  </div>
+
+</div>
+
+<script>
+
+const supabaseUrl = "https://bkqgwuvthqvbgalfxjkj.supabase.co"
+const supabaseKey = "sb_publishable_Bmp-VjS7FEAUofmrAv1cJQ_Q8OZy5jO"
+
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey)
+
+let chart; // 🔥 evita duplicados
+
+async function cargarDashboard(){
+
+  const {data:auditorias, error:errA} = await supabaseClient
+  .from("auditorias")
+  .select()
+
+  const {data:hallazgos, error:errH} = await supabaseClient
+  .from("hallazgos")
+  .select()
+
+  if(errA || errH){
+    alert("Error cargando datos")
+    return
+  }
+
+  // 🔥 NORMALIZAR estatus (anti errores humanos)
+  let programadas = auditorias.filter(a=>a.estatus?.toLowerCase()=="programado").length
+
+  let plan = auditorias.filter(a=>a.estatus?.toLowerCase().includes("plan")).length
+
+  let abiertos = hallazgos.filter(h=>h.estatus?.toLowerCase()=="abierto").length
+
+  document.getElementById("programadas").innerText=programadas
+  document.getElementById("plan").innerText=plan
+  document.getElementById("hallazgos").innerText=abiertos
+
+  // 🔥 destruir gráfica anterior
+  if(chart){
+    chart.destroy()
+  }
+
+  const ctx=document.getElementById("grafica")
+
+  chart = new Chart(ctx,{
+    type:"bar",
+    data:{
+      labels:["Programadas","Con plan","Hallazgos abiertos"],
+      datasets:[{
+        label:"Indicadores SGC",
+        data:[programadas,plan,abiertos]
+      }]
+    }
+  })
+}
+
+cargarDashboard()
+
+</script>
+
+</body>
+
+</html>

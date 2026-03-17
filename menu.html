@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link rel="stylesheet" href="styles.css">
+<title>Menú Sistema SGC</title>
+
+</head>
+
+<body>
+
+
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>📊 Sistema Auditorías</h1>
+    <div>
+      <span id="usuarioNombre"></span>
+      <span class="logout" onclick="logout()">Salir</span>
+    </div>
+  </div>
+
+  <!-- GRID -->
+  <div class="grid">
+
+    <div class="card" onclick="ir('dashboard.html')">
+        <div class="card-title">Dashboard</div>
+        <div class="card-desc">Indicadores y estado del sistema</div>
+    </div>
+
+    <div class="card" onclick="ir('auditorias.html')">
+        <div class="card-title">Auditorías</div>
+        <div class="card-desc">Gestión completa de auditorías</div>
+    </div>
+
+    <div class="card" id="cardPrograma" onclick="ir('programa.html')">
+        <div class="card-title">Programa</div>
+        <div class="card-desc">Planificación de auditorías</div>
+    </div>
+
+</div>
+
+</div>
+
+<script>
+    
+const usuario = JSON.parse(localStorage.getItem("usuario"));
+
+if(!usuario){
+  window.location = "login.html";
+}
+
+// Mostrar nombre + rol
+document.getElementById("usuarioNombre").innerText =
+  usuario.correo + " (" + usuario.rol + ")";
+
+// Normalizar rol (esto evita errores humanos)
+const rol = usuario.rol?.trim().toLowerCase();
+
+// 🔥 CONTROL DE MENÚ
+if(rol === "auditor"){
+
+  // Auditor NO puede ver programa
+  document.getElementById("cardPrograma").style.display = "none";
+
+
+}
+
+if(rol === "representante"){
+
+  // Representante ve todo (no haces nada)
+
+}
+
+function ir(pagina){
+  window.location = pagina;
+}
+
+function logout(){
+  localStorage.clear(); // por si luego guardas más cosas
+  window.location.href = "login.html";
+}
+</script>
+
+</body>
+
+</html>

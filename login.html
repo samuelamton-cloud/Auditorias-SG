@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<link rel="stylesheet" href="styles.css">
+<title>Login SG</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+</head>
+
+<body>
+
+<body>
+  <div class="login-container">
+    <div class="login-box">
+      <div class="title">Sistema Auditorías</div>
+
+      <input class="input" id="correo" placeholder="Correo">
+      <input class="input" type="password" id="password" placeholder="Contraseña">
+
+      <button class="btn" onclick="login()">Entrar</button>
+
+      <div id="error" class="error"></div>
+    </div>
+  </div>
+</body>
+
+<script>
+
+const supabaseUrl = "https://bkqgwuvthqvbgalfxjkj.supabase.co"
+const supabaseKey = "sb_publishable_Bmp-VjS7FEAUofmrAv1cJQ_Q8OZy5jO"
+
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey)
+
+async function login(){
+
+const correo = document.getElementById("correo").value
+const password = document.getElementById("password").value
+
+const { data, error } = await supabaseClient
+.from("usuarios")
+.select()
+.eq("correo",correo)
+.eq("password",password)
+.single()
+
+if(error){
+
+document.getElementById("error").innerText = "Usuario o contraseña incorrectos";
+return
+
+}
+
+localStorage.setItem("usuario", JSON.stringify(data))
+
+console.log("Usuario guardado:", localStorage.getItem("usuario"))
+
+window.location="menu.html"
+
+}
+
+
+</script>
+
+</body>
+
+</html>
